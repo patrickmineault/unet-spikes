@@ -20,24 +20,26 @@ class UNet1D(nn.Module):
         self.build()
 
     def build(self):
+        self.embedding = nn.Conv1d(self.dim, self.latent_dim, kernel_size=1)
         self.downsample_layers = nn.ModuleList()
         self.upsample_layers = nn.ModuleList()
+        self.unembedding = nn.Conv1d(self.latent_dim, self.dim, kernel_size=1)
 
         for i in range(self.nlayers):
-            if i == 0:
-                self.downsample_layers.append(
-                    DownsampleLayer(self.dim, self.latent_dim)
+            self.downsample_layers.append(
+                DownsampleLayer(
+                    self.latent_dim * 2**i, self.latent_dim * (2 ** (i + 1))
                 )
-                self.upsample_layers.append(UpsampleLayer(self.latent_dim, self.dim))
-            else:
-                self.downsample_layers.append(
-                    DownsampleLayer(self.latent_dim * 2**i, self.latent_dim * 2**i)
+            )
+            self.upsample_layers.append(
+                UpsampleLayer(
+                    self.latent_dim * (2 ** (self.nlayers - i)),
+                    self.latent_dim * 2 ** (self.nlayers - i - 1),
                 )
-                self.upsample_layers.append(
-                    UpsampleLayer(self.latent_dim * 2**i, self.latent_dim * 2**i)
-                )
+            )
 
     def forward(self, X):
+        X = self.embedding(X)
         activations = []
         for layer in self.downsample_layers:
             X = layer(X)
@@ -47,6 +49,7 @@ class UNet1D(nn.Module):
         for layer in self.upsample_layers:
             X = layer(X + activations.pop())
 
+        X = self.unembedding(X)
         return X
 
 
@@ -58,15 +61,19 @@ class DownsampleLayer(nn.Module):
         super(DownsampleLayer, self).__init__()
 
         self.conv1 = nn.Conv1d(
-            in_channels, out_channels, kernel_size=3, padding=1, groups=in_channels
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            padding=1,
+            groups=min(out_channels, in_channels),
         )
-        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, padding=1)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, padding=0)
         self.conv3 = nn.Conv1d(
             out_channels,
             out_channels,
             kernel_size=3,
             padding=1,
-            groups=in_channels,
+            groups=out_channels,
             stride=2,
         )
 
@@ -100,7 +107,11 @@ class UpsampleLayer(nn.Module):
         super(UpsampleLayer, self).__init__()
 
         self.conv1 = nn.Conv1d(
-            in_channels, out_channels, kernel_size=3, padding=1, groups=in_channels
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            padding=1,
+            groups=min(in_channels, out_channels),
         )
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, padding=0)
         self.conv3 = nn.ConvTranspose1d(
