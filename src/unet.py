@@ -6,6 +6,8 @@ It uses the same architecture as the original UNet paper with residual connectio
 The input is a spike train of shape (batch_size, N_channels, Nt) and the output is a spike train of shape (batch_size, N_channels, Nt).
 """
 
+import numpy as np
+import torch
 from torch import nn
 
 
@@ -51,6 +53,12 @@ class UNet1D(nn.Module):
 
         X = self.unembedding(X)
         return X
+
+    def set_baseline_rate(self, baseline_rate):
+        self.baseline_rate = baseline_rate
+        self.unembedding.bias.data = self.unembedding.bias.data * 0.0 + np.log(
+            baseline_rate
+        )
 
 
 class DownsampleLayer(nn.Module):
