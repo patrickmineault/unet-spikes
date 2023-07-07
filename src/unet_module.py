@@ -37,7 +37,7 @@ class UnetLitModule(LightningModule):
         # Use a masked langueage model and predict the missing values
         X, _, _, _ = batch
         mask, X_true = self.masker.mask_batch(X)
-        X_smoothed = self.net(X * mask)
+        X_smoothed = self.net((X * mask).to(torch.float32))
         loss = self.criterion(X_smoothed[mask == 0], X_true[mask == 0])
         return loss, X_smoothed, X_true
 
@@ -51,10 +51,6 @@ class UnetLitModule(LightningModule):
         loss, preds, targets = self.model_step(batch)
 
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("train/mean_preds", preds.mean())
-        self.log("train/mean_targets", targets.mean())
-        self.log("train/std_preds", preds.std())
-        self.log("train/std_targets", preds.mean())
 
         # return loss or backpropagation will fail
         return loss
