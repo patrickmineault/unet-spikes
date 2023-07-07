@@ -1,3 +1,4 @@
 *.egg-info
 *.pyc
 *.h5
+scripts/lightning_logs/*
