@@ -1,10 +1,15 @@
-import torchmetrics
+import torch
 import torch.optim
 import torch.optim.lr_scheduler
-
-import torch
-from torch import nn
+import torchmetrics
 from lightning import LightningModule
+from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
+from munch import munchify
+from torch import nn
+from torch.utils.data import DataLoader
+
+from src import mask
+from src.dataset import SpikesDataset
 
 
 class UnetLitModule(LightningModule):
@@ -19,14 +24,22 @@ class UnetLitModule(LightningModule):
 
         self.net = net
 
+    def setup(self, stage: str):
         self.criterion = nn.PoissonNLLLoss(log_input=True, full=True)
+        self.masker = mask.Masker(mask.MaskParams(), self.device)
         self.train_loss = torchmetrics.MeanMetric()
+        self.train_dataset = SpikesDataset("../data/lorenz.yaml")
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.train_dataset, batch_size=32, shuffle=True)
 
     def model_step(self, batch):
-        X, y = batch
-        y_hat = self.net(X)
-        loss = self.criterion(y_hat, y)
-        return loss, y_hat, y
+        # Use a masked langueage model and predict the missing values
+        X, _, _, _ = batch
+        mask, X_true = self.masker.mask_batch(X)
+        X_smoothed = self.net(X * mask)
+        loss = self.criterion(X_smoothed[mask == 0], X_true[mask == 0])
+        return loss, X_smoothed, X_true
 
     def on_train_start(self):
         self.train_loss.reset()
@@ -40,12 +53,16 @@ class UnetLitModule(LightningModule):
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train/mean_preds", preds.mean())
         self.log("train/mean_targets", targets.mean())
+        self.log("train/std_preds", preds.std())
+        self.log("train/std_targets", preds.mean())
 
         # return loss or backpropagation will fail
         return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.net.parameters, self.hparams.lr, amsgrad=True)
+        optimizer = torch.optim.Adam(
+            self.net.parameters(), self.hparams.lr, amsgrad=True
+        )
         return {
             "optimizer": optimizer,
         }

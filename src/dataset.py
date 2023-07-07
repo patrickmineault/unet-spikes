@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # Author: Joel Ye
 import os.path as osp
+from pathlib import Path
 
 import h5py
+from munch import munchify
 import numpy as np
 import torch
 from torch.utils import data
+import yaml
 
 
 # Verbatim from LFADS_TF2
@@ -77,7 +80,7 @@ class SpikesDataset(data.Dataset):
     # ! Note that codepath for forward but not heldout neurons is not tested and likely broken
     """
 
-    def __init__(self, config, filename, mode=DATASET_MODES.train, logger=None):
+    def __init__(self, config_filename, mode=DATASET_MODES.train, logger=None):
         r"""
         args:
             config: dataset config
@@ -85,44 +88,34 @@ class SpikesDataset(data.Dataset):
             mode: used to extract the right indices from LFADS h5 data
         """
         super().__init__()
+        with open(config_filename) as f:
+            config = munchify(yaml.load(f, Loader=yaml.FullLoader))
+
         self.logger = logger
-        if self.logger is not None:
-            self.logger.info(f"Loading {filename} in {mode}")
         self.config = config.DATA
         self.use_lograte = config.MODEL.LOGRATE
         self.batch_size = config.TRAIN.BATCH_SIZE
-        self.datapath = osp.join(config.DATA.DATAPATH, filename)
-        split_path = self.datapath.split(".")
+        self.datapath = Path(config.DATA.DATAPATH) / config.DATA.TRAIN_FILENAME
 
         self.has_rates = False
         self.has_heldout = False
         self.has_forward = False
-        if len(split_path) == 1 or split_path[-1] == "h5":
-            spikes, rates, heldout_spikes, forward_spikes = self.get_data_from_h5(
-                mode, self.datapath
-            )
 
-            spikes = torch.tensor(spikes).long()
-            if rates is not None:
-                rates = torch.tensor(rates)
-            if heldout_spikes is not None:
-                self.has_heldout = True
-                heldout_spikes = torch.tensor(heldout_spikes).long()
-            if forward_spikes is not None and not config.DATA.IGNORE_FORWARD:
-                self.has_forward = True
-                forward_spikes = torch.tensor(forward_spikes).long()
-            else:
-                forward_spikes = None
-        elif split_path[-1] == "pth":
-            dataset_dict = torch.load(self.datapath)
-            spikes = dataset_dict["spikes"]
-            if "rates" in dataset_dict:
-                self.has_rates = True
-                rates = dataset_dict["rates"]
-            heldout_spikes = None
-            forward_spikes = None
+        spikes, rates, heldout_spikes, forward_spikes = self.get_data_from_h5(
+            mode, self.datapath
+        )
+
+        spikes = torch.tensor(spikes).long()
+        if rates is not None:
+            rates = torch.tensor(rates)
+        if heldout_spikes is not None:
+            self.has_heldout = True
+            heldout_spikes = torch.tensor(heldout_spikes).long()
+        if forward_spikes is not None and not config.DATA.IGNORE_FORWARD:
+            self.has_forward = True
+            forward_spikes = torch.tensor(forward_spikes).long()
         else:
-            raise Exception(f"Unknown dataset extension {split_path[-1]}")
+            forward_spikes = None
 
         self.num_trials, _, self.num_neurons = spikes.size()
         self.full_length = config.MODEL.TRIAL_LENGTH <= 0
@@ -209,7 +202,7 @@ class SpikesDataset(data.Dataset):
             self.spikes[index],
             None if self.rates is None else self.rates[index],
             None if self.heldout_spikes is None else self.heldout_spikes[index],
-            None if self.forward_spikes is None else self.forward_spikes[index],
+            None if self.forward_spikes is None else self.forward_spikes[index]
         )
 
     def get_dataset(self):
