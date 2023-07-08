@@ -27,7 +27,7 @@ class MaskParams:
 
 # Use a class so we can cache random mask
 class Masker:
-    def __init__(self, train_cfg: MaskParams, device):
+    def __init__(self, train_cfg, device):
         self.update_config(train_cfg)
         if self.cfg.MASK_MODE not in SUPPORTED_MODES:
             raise Exception(
@@ -35,8 +35,8 @@ class Masker:
             )
         self.device = device
 
-    def update_config(self, config: MaskParams):
-        self.cfg: MaskParams = config
+    def update_config(self, config):
+        self.cfg = config
         self.prob_mask = None
 
     def expand_mask(self, mask, width):
@@ -81,7 +81,7 @@ class Masker:
             labels: true data (also NxTxH)
         """
         batch = (
-            batch.clone()
+            batch.clone().permute(0, 2, 1).contiguous()
         )  # make sure we don't corrupt the input data (which is stored in memory)
 
         mode = self.cfg.MASK_MODE
@@ -177,4 +177,4 @@ class Masker:
             )
             labels = torch.cat([labels, forward_spikes.to(batch.device)], 1)
         # Leave the other 10% alone
-        return batch, labels
+        return batch.permute(0, 2, 1).contiguous(), labels.permute(0, 2, 1).contiguous()

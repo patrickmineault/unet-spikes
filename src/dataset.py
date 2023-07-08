@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # Author: Joel Ye
 import os.path as osp
+from enum import Enum
 from pathlib import Path
 
 import h5py
-from munch import munchify
 import numpy as np
 import torch
-from torch.utils import data
 import yaml
+from munch import munchify
+from torch.utils import data
 
 
 # Verbatim from LFADS_TF2
@@ -66,7 +67,7 @@ def merge_train_valid(train_data, valid_data, train_ixs, valid_ixs):
     return data
 
 
-class DATASET_MODES:
+class DATASET_MODES(Enum):
     train = "train"
     val = "val"
     test = "test"
@@ -95,7 +96,7 @@ class SpikesDataset(data.Dataset):
         self.config = config.DATA
         self.use_lograte = config.MODEL.LOGRATE
         self.batch_size = config.TRAIN.BATCH_SIZE
-        self.datapath = Path(config.DATA.DATAPATH) / config.DATA.TRAIN_FILENAME
+        self.datapath = Path(config_filename).parent / config.DATA.TRAIN_FILENAME
 
         self.has_rates = False
         self.has_heldout = False
@@ -198,12 +199,28 @@ class SpikesDataset(data.Dataset):
         r"""
         Return spikes and rates, shaped T x N (num_neurons)
         """
-        return (
-            self.spikes[index],
-            None if self.rates is None else self.rates[index],
-            None if self.heldout_spikes is None else self.heldout_spikes[index],
-            None if self.forward_spikes is None else self.forward_spikes[index]
+        last_slice = slice(0, self.spikes.shape[1])
+        if self.spikes.shape[1] % 2 == 0:
+            last_slice = slice(0, self.spikes.shape[1] - 1)
+
+        spikes = self.spikes[index].T[..., last_slice]
+        rates = (
+            None
+            if self.rates is None
+            else self.rates[index].T[..., last_slice]
         )
+        heldout_spikes = (
+            None
+            if self.heldout_spikes is None
+            else self.heldout_spikes[index].T[..., last_slice]
+        )
+        forward_spikes = (
+            None
+            if self.forward_spikes is None
+            else self.forward_spikes[index].T[..., last_slice]
+        )
+
+        return (spikes, rates, heldout_spikes, forward_spikes)
 
     def get_dataset(self):
         return self.spikes, self.rates, self.heldout_spikes, self.forward_spikes

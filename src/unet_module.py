@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 
 from src import mask
-from src.dataset import SpikesDataset
+from src.dataset import DATASET_MODES, SpikesDataset
 
 
 class UnetLitModule(LightningModule):
@@ -38,15 +38,17 @@ class UnetLitModule(LightningModule):
         self.masker = mask.Masker(mask.MaskParams(), self.device)
         self.train_loss = torchmetrics.MeanMetric()
         self.train_dataset = SpikesDataset("../data/lorenz.yaml")
+        self.val_dataset = SpikesDataset("../data/lorenz.yaml", DATASET_MODES.val)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_dataset, batch_size=32, shuffle=False)
 
+    def val_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.val_dataset, batch_size=32, shuffle=False)
+
     def model_step(self, batch):
         # Use a masked langueage model and predict the missing values
         X, rate, _, _ = batch
-        X = X[:, :-1, :]
-        rate = rate[:, :-1, :]
         _, X_masked = self.masker.mask_batch(X)
 
         # TODO(pmin): swallow this in the Data Loader
@@ -54,7 +56,6 @@ class UnetLitModule(LightningModule):
         X_masked = rearrange(X_masked, "batch time neurons -> batch neurons time")
         rate = rearrange(rate, "batch time neurons -> batch neurons time")
 
-        assert X.shape[0] == 32  # Batch size.
         assert X.shape[1] == 29  # Number of neurons.
         # The rest should be time, which can be variable.
 
@@ -88,6 +89,11 @@ class UnetLitModule(LightningModule):
         self.log("train/mean_mask", mask.to(torch.float32).mean())
 
         # return loss or backpropagation will fail
+        return loss
+
+    def validation_step(self, batch, batch_idx: int):
+        loss, preds, targets, mask, rate = self.model_step(batch)
+        self.log("val/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def on_train_epoch_end(self) -> None:
