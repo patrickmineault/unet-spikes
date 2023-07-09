@@ -10,8 +10,15 @@ def test_downsample():
     assert Y.shape == (1, 4, 51)
 
 
-def test_upsample():
-    net = unet.UpsampleLayer(4, 2)
+def test_upsample_deconv():
+    net = unet.UpsampleLayer(4, 2, unet.UpsampleMethod.DECONV)
+    X = torch.randn(1, 4, 51)
+    Y = net(X)
+    assert Y.shape == (1, 2, 101)
+
+
+def test_upsample_linear():
+    net = unet.UpsampleLayer(4, 2, unet.UpsampleMethod.LINEAR)
     X = torch.randn(1, 4, 51)
     Y = net(X)
     assert Y.shape == (1, 2, 101)

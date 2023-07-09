@@ -6,18 +6,30 @@ It uses the same architecture as the original UNet paper with residual connectio
 The input is a spike train of shape (batch_size, N_channels, Nt) and the output is a spike train of shape (batch_size, N_channels, Nt).
 """
 
+from enum import Enum
+from typing import Any
+
 import numpy as np
+import torch
 import torch.nn.functional as F
 from torch import nn
 
 
+class UpsampleMethod(Enum):
+    DECONV = "deconv"
+    LINEAR = "linear"
+
+
 class UNet1D(nn.Module):
-    def __init__(self, nlayers, dim, latent_dim):
+    def __init__(
+        self, nlayers, dim, latent_dim, upsample: UpsampleMethod = UpsampleMethod.LINEAR
+    ):
         super(UNet1D, self).__init__()
 
         self.nlayers = nlayers
         self.dim = dim
         self.latent_dim = latent_dim
+        self.upsample = upsample
 
         self.build()
 
@@ -37,13 +49,17 @@ class UNet1D(nn.Module):
                 UpsampleLayer(
                     self.latent_dim * (2 ** (self.nlayers - i)),
                     self.latent_dim * 2 ** (self.nlayers - i - 1),
+                    upsample=self.upsample,
                 )
             )
 
     def forward(self, X):
         # Pad bidirectionally to the nearest (relevant) power of 2
         X_shape = X.shape
-        ideal_size = int(np.ceil((X.shape[2] - 1) / (2**self.nlayers)) * (2**self.nlayers)) + 1
+        ideal_size = (
+            int(np.ceil((X.shape[2] - 1) / (2**self.nlayers)) * (2**self.nlayers))
+            + 1
+        )
         left_pad = (ideal_size - X.shape[2]) // 2
         right_pad = ideal_size - X.shape[2] - left_pad
         X = F.pad(X, (left_pad, right_pad))
@@ -123,8 +139,22 @@ class DownsampleLayer(nn.Module):
         return X
 
 
+class Doubler(nn.Module):
+    def __init__(self):
+        super(Doubler, self).__init__()
+
+    def forward(self, X):
+        assert X.ndim == 3
+        X1 = torch.zeros(
+            X.shape[0], X.shape[1], X.shape[2] * 2 - 1, device=X.device, dtype=X.dtype
+        )
+        X1[:, :, ::2] = X
+        X1[:, :, 1::2] = X[:, :, :-1] + X[:, :, 1:]
+        return X1
+
+
 class UpsampleLayer(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, upsample: UpsampleMethod):
         self.in_channels = in_channels
         self.out_channels = out_channels
 
@@ -138,9 +168,17 @@ class UpsampleLayer(nn.Module):
             groups=min(in_channels, out_channels),
         )
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, padding=0)
-        self.conv3 = nn.ConvTranspose1d(
-            out_channels, out_channels, kernel_size=3, padding=1, stride=2
-        )
+        if upsample == UpsampleMethod.DECONV:
+            self.conv3 = nn.ConvTranspose1d(
+                out_channels, out_channels, kernel_size=3, padding=1, stride=2
+            )
+        elif upsample == UpsampleMethod.LINEAR:
+            self.conv3 = nn.Sequential(
+                Doubler(),
+                nn.Conv1d(out_channels, out_channels, kernel_size=3, padding=1),
+            )
+        else:
+            raise NotImplementedError(f"Invalid upsample method {upsample}")
 
         self.bn1 = nn.BatchNorm1d(out_channels)
         self.bn2 = nn.BatchNorm1d(out_channels)
