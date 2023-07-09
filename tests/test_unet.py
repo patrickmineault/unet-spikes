@@ -1,4 +1,5 @@
 import torch
+
 from src import unet
 
 
@@ -21,3 +22,11 @@ def test_forward():
     X = torch.randn(1, 10, 101)
     Y = net(X)
     assert X.shape == Y.shape
+
+
+def test_shapes():
+    net = unet.UNet1D(4, 10, 2)
+    for i in range(8):
+        X = torch.randn(1, 10, 17 + i)
+        Y = net(X)
+        assert X.shape == Y.shape

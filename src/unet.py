@@ -7,7 +7,7 @@ The input is a spike train of shape (batch_size, N_channels, Nt) and the output 
 """
 
 import numpy as np
-import torch
+import torch.nn.functional as F
 from torch import nn
 
 
@@ -41,6 +41,17 @@ class UNet1D(nn.Module):
             )
 
     def forward(self, X):
+        # Pad bidirectionally to the nearest (relevant) power of 2
+        X_shape = X.shape
+        ideal_size = int(np.ceil((X.shape[2] - 1) / (2**self.nlayers)) * (2**self.nlayers)) + 1
+        left_pad = (ideal_size - X.shape[2]) // 2
+        right_pad = ideal_size - X.shape[2] - left_pad
+        X = F.pad(X, (left_pad, right_pad))
+
+        assert X_shape[0] == X.shape[0]
+        assert X_shape[1] == X.shape[1]
+        assert X.shape[2] % (2**self.nlayers) == 1
+
         X = self.embedding(X)
         activations = []
         for layer in self.downsample_layers:
@@ -52,9 +63,14 @@ class UNet1D(nn.Module):
             X = layer(X + activations.pop())
 
         X = self.unembedding(X)
+        # Unpad!
+        if right_pad > 0:
+            X = X[:, :, left_pad:-right_pad]
         return X
 
     def set_baseline_rate(self, baseline_rate):
+        """Sets the baseline mean spike rate of the model by modifying the bias
+        of the unembedding layer."""
         self.baseline_rate = baseline_rate
         self.unembedding.bias.data = self.unembedding.bias.data * 0.0 + np.log(
             baseline_rate

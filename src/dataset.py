@@ -199,28 +199,13 @@ class SpikesDataset(data.Dataset):
         r"""
         Return spikes and rates, shaped T x N (num_neurons)
         """
-        # For easy compability with UNet, we use round the size of the batches so they're multiples of 16 + 1
-        closest_num = int(np.floor((self.spikes.shape[1] - 1) / 16) * 16 + 1)
-        delta_num = self.spikes.shape[1] - closest_num
-        assert delta_num >= 0
-        if delta_num > 0:
-            random_delta = np.random.randint(0, delta_num)
-            last_slice = slice(random_delta, random_delta + closest_num)
-        else:
-            # Include everything
-            last_slice = slice(None)
-
-        spikes = self.spikes[index].T[..., last_slice]
-        rates = None if self.rates is None else self.rates[index].T[..., last_slice]
+        spikes = self.spikes[index].T
+        rates = None if self.rates is None else self.rates[index].T
         heldout_spikes = (
-            None
-            if self.heldout_spikes is None
-            else self.heldout_spikes[index].T[..., last_slice]
+            None if self.heldout_spikes is None else self.heldout_spikes[index].T
         )
         forward_spikes = (
-            None
-            if self.forward_spikes is None
-            else self.forward_spikes[index].T[..., last_slice]
+            None if self.forward_spikes is None else self.forward_spikes[index].T
         )
 
         return (spikes, rates, heldout_spikes, forward_spikes)

@@ -39,18 +39,22 @@ class UnetLitModule(LightningModule):
         self.masker = mask.Masker(mask.MaskParams(), self.device)
         self.train_loss = torchmetrics.MeanMetric()
         self.train_dataset = SpikesDataset(self.data_source)
+        self.val_r2 = torchmetrics.MeanMetric()
         self.val_dataset = SpikesDataset(self.data_source, DATASET_MODES.val)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_dataset, batch_size=32, shuffle=True)
 
     def val_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.val_dataset, batch_size=32, shuffle=True)
+        return DataLoader(self.val_dataset, batch_size=32, shuffle=False)
 
-    def model_step(self, batch):
+    def model_step(self, batch, mask: bool = True):
         # Use a masked langueage model and predict the missing values
         X, rate, _, _ = batch
-        _, X_masked = self.masker.mask_batch(X)
+        if mask:
+            _, X_masked = self.masker.mask_batch(X)
+        else:
+            X_masked = -torch.ones_like(X)
 
         removed = X_masked >= 0
         X_smoothed = self.net((X * (1 - 1 * removed)).to(torch.float32))
@@ -87,6 +91,13 @@ class UnetLitModule(LightningModule):
     def validation_step(self, batch, batch_idx: int):
         loss, preds, targets, mask, rate = self.model_step(batch)
         self.log("val/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+
+        if rate is not None:
+            # Figure out whether we can predict the rate well
+            _, preds, targets, mask, rate = self.model_step(batch, mask=False)
+            r2 = torch.corrcoef(torch.stack([preds.ravel(), rate.ravel()]))[0, 1] ** 2
+            self.val_r2(r2)
+            self.log("val/r2", self.val_r2, on_step=True, on_epoch=True)
         return loss
 
     def on_train_epoch_end(self) -> None:
