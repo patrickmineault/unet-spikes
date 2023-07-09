@@ -13,11 +13,11 @@ The UNet performs a combination of local smoothing and mixing data from differen
 * `cd` into the directory and `pip install -e .`
 * `pip install -r requirements.txt`
 
-Then, clone the data necessary to continue. Using the s3 command line tool:
+Then, clone the data necessary to continue. Use an automated tool like `wget`:
 
 ```
-s3 cp s3://cajal-data-740441/lfads_lorenz.h5 data
-s3 cp s3://cajal-data-740441/chaotic_rnn_no_inputs_dataset_N50_S50.h5 data
+wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
+wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5
 ```
 
 Or download manually [1](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
