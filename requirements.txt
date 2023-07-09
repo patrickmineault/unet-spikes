@@ -1,0 +1,12 @@
+black~=23.3
+einops~=0.6
+h5py~=3.9
+isort~=5.12
+lightning~=2.0
+matplotlib~=3.7
+numpy~=1.25
+pytest~=7.4
+PyYAML==6.0
+torch~=2.0
+tqdm~=4
+wandb~=0.15
