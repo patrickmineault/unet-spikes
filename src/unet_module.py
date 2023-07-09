@@ -2,7 +2,6 @@ import torch
 import torch.optim
 import torch.optim.lr_scheduler
 import torchmetrics
-from einops import rearrange
 from lightning import LightningModule
 from lightning.pytorch import loggers as pl_loggers
 from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
@@ -18,6 +17,7 @@ class UnetLitModule(LightningModule):
     def __init__(
         self,
         net: torch.nn.Module,
+        data_source: str,
         lr: float = 1e-3,
     ):
         super().__init__()
@@ -25,6 +25,7 @@ class UnetLitModule(LightningModule):
         self.save_hyperparameters(ignore=["net"])
 
         self.net = net
+        self.data_source = data_source
 
     def setup(self, stage: str):
         self.criterion = nn.PoissonNLLLoss(
@@ -37,27 +38,20 @@ class UnetLitModule(LightningModule):
         )
         self.masker = mask.Masker(mask.MaskParams(), self.device)
         self.train_loss = torchmetrics.MeanMetric()
-        self.train_dataset = SpikesDataset("../data/lorenz.yaml")
-        self.val_dataset = SpikesDataset("../data/lorenz.yaml", DATASET_MODES.val)
+        self.train_dataset = SpikesDataset(self.data_source)
+        self.val_dataset = SpikesDataset(self.data_source, DATASET_MODES.val)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.train_dataset, batch_size=32, shuffle=False)
+        return DataLoader(self.train_dataset, batch_size=32, shuffle=True)
 
     def val_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.val_dataset, batch_size=32, shuffle=False)
+        return DataLoader(self.val_dataset, batch_size=32, shuffle=True)
 
     def model_step(self, batch):
         # Use a masked langueage model and predict the missing values
         X, rate, _, _ = batch
         _, X_masked = self.masker.mask_batch(X)
-
-        # TODO(pmin): swallow this in the Data Loader
-        X = rearrange(X, "batch time neurons -> batch neurons time")
-        X_masked = rearrange(X_masked, "batch time neurons -> batch neurons time")
-        rate = rearrange(rate, "batch time neurons -> batch neurons time")
-
-        assert X.shape[1] == 29  # Number of neurons.
-        # The rest should be time, which can be variable.
+        assert X_masked.shape[1] == 29  # Number of neurons.
 
         removed = X_masked >= 0
         X_smoothed = self.net((X * (1 - 1 * removed)).to(torch.float32))
@@ -122,7 +116,7 @@ class UnetLitModule(LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
-            self.net.parameters(), self.hparams.lr, amsgrad=True
+            self.net.parameters(), self.hparams.lr, amsgrad=True  # type: ignore
         )
         return {
             "optimizer": optimizer,

@@ -2,3 +2,5 @@
 *.pyc
 *.h5
 scripts/lightning_logs/*
+.env
+scripts/wandb
