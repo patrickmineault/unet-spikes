@@ -51,7 +51,6 @@ class UnetLitModule(LightningModule):
         # Use a masked langueage model and predict the missing values
         X, rate, _, _ = batch
         _, X_masked = self.masker.mask_batch(X)
-        assert X_masked.shape[1] == 29  # Number of neurons.
 
         removed = X_masked >= 0
         X_smoothed = self.net((X * (1 - 1 * removed)).to(torch.float32))

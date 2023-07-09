@@ -1,6 +1,5 @@
 CHECKPOINT_DIR: "/snel/share/joel/transformer_modeling/"
 DATA:
-  DATAPATH: "../data"
   TRAIN_FILENAME: 'chaotic_rnn_no_inputs_dataset_N50_S50.h5'
   VAL_FILENAME: 'chaotic_rnn_no_inputs_dataset_N50_S50.h5'
   LOG_EPSILON: .0000001

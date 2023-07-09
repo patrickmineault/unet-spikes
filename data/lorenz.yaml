@@ -1,6 +1,5 @@
 CHECKPOINT_DIR: "/snel/share/joel/transformer_modeling/"
 DATA:
-  DATAPATH: "../data"
   TRAIN_FILENAME: 'lfads_lorenz.h5'
   VAL_FILENAME: 'lfads_lorenz.h5'
   LOG_EPSILON: .0000001
