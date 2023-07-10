@@ -55,18 +55,22 @@ class UNet1D(nn.Module):
 
     def forward(self, X):
         # Pad bidirectionally to the nearest (relevant) power of 2
-        X_shape = X.shape
-        ideal_size = (
-            int(np.ceil((X.shape[2] - 1) / (2**self.nlayers)) * (2**self.nlayers))
-            + 1
-        )
-        left_pad = (ideal_size - X.shape[2]) // 2
-        right_pad = ideal_size - X.shape[2] - left_pad
-        X = F.pad(X, (left_pad, right_pad))
+        if self.nlayers > 0:
+            X_shape = X.shape
+            ideal_size = (
+                int(np.ceil((X.shape[2] - 1) / (2**self.nlayers)) * (2**self.nlayers))
+                + 1
+            )
+            left_pad = (ideal_size - X.shape[2]) // 2
+            right_pad = ideal_size - X.shape[2] - left_pad
+            X = F.pad(X, (left_pad, right_pad))
 
-        assert X_shape[0] == X.shape[0]
-        assert X_shape[1] == X.shape[1]
-        assert X.shape[2] % (2**self.nlayers) == 1
+            assert X_shape[0] == X.shape[0]
+            assert X_shape[1] == X.shape[1]
+            assert X.shape[2] % (2**self.nlayers) == 1
+        else:
+            left_pad = 0
+            right_pad = 0
 
         X = self.embedding(X)
         activations = []
@@ -74,7 +78,9 @@ class UNet1D(nn.Module):
             X = layer(X)
             activations.append(X)
 
-        X = 0
+        if self.nlayers > 0:
+            X = 0
+            
         for layer in self.upsample_layers:
             X = layer(X + activations.pop())
 
