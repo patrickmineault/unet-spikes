@@ -2,6 +2,8 @@
 # Author: Joel Ye
 
 from dataclasses import dataclass
+from enum import Enum
+
 
 import torch
 import torch.nn as nn
@@ -10,7 +12,12 @@ import torch.nn.functional as F
 # Some infeasibly high spike count
 DEFAULT_MASK_VAL = 30
 UNMASKED_LABEL = -100
-SUPPORTED_MODES = ["full", "timestep", "neuron", "timestep_only"]
+
+class MaskMode(Enum):
+    full = "full"
+    neuron = "neuron"
+    timestep = "timestep"
+    timestep_only = "timestep_only"
 
 
 @dataclass
@@ -18,7 +25,7 @@ class MaskParams:
     MASK_RATIO: float = 0.2
     MASK_TOKEN_RATIO: float = 1.0
     MASK_RANDOM_RATIO: float = 0.5
-    MASK_MODE: str = "timestep"
+    MASK_MODE: MaskMode = MaskMode.timestep
     MASK_MAX_SPAN: int = 1
     MASK_SPAN_RAMP_START: int = 600
     MASK_SPAN_RAMP_END: int = 1200
@@ -27,11 +34,11 @@ class MaskParams:
 
 # Use a class so we can cache random mask
 class Masker:
-    def __init__(self, train_cfg, device):
+    def __init__(self, train_cfg: MaskParams, device: str):
         self.update_config(train_cfg)
-        if self.cfg.MASK_MODE not in SUPPORTED_MODES:
+        if self.cfg.MASK_MODE not in MaskMode:
             raise Exception(
-                f"Given {self.cfg.MASK_MODE} not in supported {SUPPORTED_MODES}"
+                f"Given {self.cfg.MASK_MODE} not in supported {MaskMode}"
             )
         self.device = device
 
@@ -70,19 +77,20 @@ class Masker:
         Modeled after HuggingFace's `mask_tokens` in `run_language_modeling.py`
         args:
             batch: batch NxTxH
-            mask_ratio: ratio to randomly mask
-            mode: "full" or "timestep" - if "full", will randomly drop on full matrix, whereas on "timestep", will mask out random timesteps
-            mask: Optional mask to use
+            mask: Optional mask to use. If mask is used, overried any internal masking
             max_spikes: in case not zero masking, "mask token"
+            should_mask: whether the function should actually mask the data or only *generate* the mask
             expand_prob: with this prob, uniformly expand. else, keep single tokens. UniLM does, with 40% expand to fixed, else keep single.
+            mask_ratio: ratio to randomly mask
             heldout_spikes: None
         returns:
             batch: list of data batches NxTxH, with some elements along H set to -1s (we allow peeking between rates)
             labels: true data (also NxTxH)
         """
+        # We use standard BCT order, the function was written with BTC order in mind.
         batch = (
             batch.clone().permute(0, 2, 1).contiguous()
-        )  # make sure we don't corrupt the input data (which is stored in memory)
+        )
 
         mode = self.cfg.MASK_MODE
         should_expand = (
@@ -100,15 +108,15 @@ class Masker:
         labels = batch.clone()
         if mask is None:
             if self.prob_mask is None or self.prob_mask.size() != labels.size():
-                if mode == "full":
+                if mode == MaskMode.full:
                     mask_probs = torch.full(labels.shape, mask_ratio)
-                elif mode == "timestep":
+                elif mode == MaskMode.timestep:
                     single_timestep = labels[:, :, 0]  # N x T
                     mask_probs = torch.full(single_timestep.shape, mask_ratio)
-                elif mode == "neuron":
+                elif mode == MaskMode.neuron:
                     single_neuron = labels[:, 0]  # N x H
                     mask_probs = torch.full(single_neuron.shape, mask_ratio)
-                elif mode == "timestep_only":
+                elif mode == MaskMode.timestep_only:
                     single_timestep = labels[0, :, 0]  # T
                     mask_probs = torch.full(single_timestep.shape, mask_ratio)
                 self.prob_mask = mask_probs.to(self.device)
@@ -120,11 +128,11 @@ class Masker:
                 mask = self.expand_mask(mask, width)
 
             mask = mask.bool()
-            if mode == "timestep":
+            if mode == MaskMode.timestep:
                 mask = mask.unsqueeze(2).expand_as(labels)
-            elif mode == "neuron":
+            elif mode == MaskMode.neuron:
                 mask = mask.unsqueeze(0).expand_as(labels)
-            elif mode == "timestep_only":
+            elif mode == MaskMode.timestep_only:
                 mask = mask.unsqueeze(0).unsqueeze(2).expand_as(labels)
                 # we want the shape of the mask to be T
         elif mask.size() != labels.size():
@@ -132,12 +140,13 @@ class Masker:
                 f"Input mask of size {mask.size()} does not match input size {labels.size()}"
             )
 
+        # Here mask corresponds to non-masked labels
         labels[
             ~mask
         ] = UNMASKED_LABEL  # No ground truth for unmasked - use this to mask loss
         if not should_mask:
             # Only do the generation
-            return batch, labels
+            return batch.permute(0, 2, 1).contiguous(), labels.permute(0, 2, 1).contiguous()
 
         # We use random assignment so the model learns embeddings for non-mask tokens, and must rely on context
         # Most times, we replace tokens with MASK token
