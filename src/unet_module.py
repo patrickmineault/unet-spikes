@@ -7,6 +7,7 @@ import torchmetrics
 from lightning import LightningModule
 from lightning.pytorch import loggers as pl_loggers
 from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
+import matplotlib.pyplot as plt
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -14,6 +15,16 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from src import mask
 from src.dataset import DATASET_MODES, SpikesDataset
 
+class Flip(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, batch):
+        X, Y = batch
+        if torch.rand(1) < .5:
+            return (X.flip(dims=[2]), Y.flip(dims=[2]))
+        else:
+            return (X, Y)
 
 class UnetLitModule(LightningModule):
     def __init__(
@@ -38,11 +49,15 @@ class UnetLitModule(LightningModule):
             log_input=False,
             full=False,
         )
-        self.masker = mask.Masker(mask.MaskParams(), self.device)
+        self.masker = mask.Masker(mask.MaskParams(MASK_MODE = mask.MaskMode.neuron), self.device)
         self.train_loss = torchmetrics.MeanMetric()
         self.train_dataset = SpikesDataset(self.data_source)
         self.val_r2 = torchmetrics.MeanMetric()
         self.val_dataset = SpikesDataset(self.data_source, DATASET_MODES.val)
+        self.transform = torch.nn.Sequential(
+            Flip(),
+        )
+
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_dataset, batch_size=32, shuffle=True)
@@ -72,6 +87,9 @@ class UnetLitModule(LightningModule):
         return self.net(X)
 
     def training_step(self, batch, batch_idx: int):
+        X, rate, _, _ = batch
+        X, rate = self.transform((X, rate))
+        batch = (X, rate, _, _)
         self.last_step = self.model_step(batch)
 
         loss, preds, targets, mask, rate = self.last_step
@@ -126,6 +144,10 @@ class UnetLitModule(LightningModule):
                 self.current_epoch,
                 dataformats="HW",
             )
+            plt.figure(figsize=(8, 4))
+            plt.imshow(torch.exp(rate[0]).detach().cpu().numpy() - torch.exp(preds[0]).detach().cpu().numpy())
+            plt.colorbar()
+            tensorboard.add_figure("debug/deltas", plt.gcf(), self.current_epoch)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(

@@ -39,19 +39,29 @@ class UNet1D(nn.Module):
         self.upsample_layers = nn.ModuleList()
         self.unembedding = nn.Conv1d(self.latent_dim, self.dim, kernel_size=1)
 
+        # Cap the number of channels at something reasonable
+        channel_sequence = [self.latent_dim * 2 ** min(x, 2) for x in range(self.nlayers + 1)]
+
         for i in range(self.nlayers):
             self.downsample_layers.append(
-                DownsampleLayer(
-                    self.latent_dim * 2**i, self.latent_dim * (2 ** (i + 1))
+                nn.Sequential(
+                    DownsampleLayer(
+                        channel_sequence[i], channel_sequence[i + 1]
+                    ),
+                    #nn.Dropout1d(p=0.3),
                 )
             )
             self.upsample_layers.append(
-                UpsampleLayer(
-                    self.latent_dim * (2 ** (self.nlayers - i)),
-                    self.latent_dim * 2 ** (self.nlayers - i - 1),
-                    upsample=self.upsample,
+                nn.Sequential(
+                    UpsampleLayer(
+                        channel_sequence[-i - 1],
+                        channel_sequence[-i - 2],
+                        upsample=self.upsample,
+                    ),
+                    #nn.Dropout1d(p=0.3),
                 )
             )
+            
 
     def forward(self, X):
         # Pad bidirectionally to the nearest (relevant) power of 2
@@ -63,7 +73,10 @@ class UNet1D(nn.Module):
             )
             left_pad = (ideal_size - X.shape[2]) // 2
             right_pad = ideal_size - X.shape[2] - left_pad
-            X = F.pad(X, (left_pad, right_pad))
+            left_pad += 2 ** self.nlayers
+            right_pad += 2 ** self.nlayers
+            assert abs(left_pad - right_pad) <= 1
+            X = F.pad(X, (left_pad, right_pad), mode="reflect")
 
             assert X_shape[0] == X.shape[0]
             assert X_shape[1] == X.shape[1]
@@ -71,6 +84,10 @@ class UNet1D(nn.Module):
         else:
             left_pad = 0
             right_pad = 0
+        
+        #left_pad = 2 ** self.nlayers
+        #right_pad = 2 ** self.nlayers
+        #X = F.pad(X, (left_pad, right_pad), mode="reflect")
 
         X = self.embedding(X)
         activations = []
@@ -111,7 +128,7 @@ class DownsampleLayer(nn.Module):
             out_channels,
             kernel_size=3,
             padding=1,
-            groups=min(out_channels, in_channels),
+            #groups=min(out_channels, in_channels),
         )
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, padding=0)
         self.conv3 = nn.Conv1d(
@@ -171,7 +188,7 @@ class UpsampleLayer(nn.Module):
             out_channels,
             kernel_size=3,
             padding=1,
-            groups=min(in_channels, out_channels),
+            #groups=min(in_channels, out_channels),
         )
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=1, padding=0)
         if upsample == UpsampleMethod.DECONV:
