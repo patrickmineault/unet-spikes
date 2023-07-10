@@ -20,12 +20,12 @@ def test_dimension():
     """Check that the masking is taken along the expected dimensions."""
     for dim_type in [MaskMode.timestep, MaskMode.neuron]:
         masker = Masker(MaskParams(MASK_MODE=dim_type), "cpu")
-        dummy = torch.zeros(1, 29, 49)
+        dummy = torch.zeros(2, 29, 49)
         dummy[0, 0, :] = 1
         dummy = dummy.to(torch.long)
         _, data_masked = masker.mask_batch(dummy)
         assert data_masked.shape == dummy.shape
-        data_masked = data_masked[:, 1:, :]
+        data_masked = data_masked[0, 1:, :]
 
         if dim_type == MaskMode.timestep:
             # Check that masking is along the right dimension

@@ -131,7 +131,7 @@ class Masker:
             if mode == MaskMode.timestep:
                 mask = mask.unsqueeze(2).expand_as(labels)
             elif mode == MaskMode.neuron:
-                mask = mask.unsqueeze(0).expand_as(labels)
+                mask = mask.unsqueeze(1).expand_as(labels)
             elif mode == MaskMode.timestep_only:
                 mask = mask.unsqueeze(0).unsqueeze(2).expand_as(labels)
                 # we want the shape of the mask to be T
