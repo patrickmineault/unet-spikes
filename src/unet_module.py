@@ -50,19 +50,20 @@ class UnetLitModule(LightningModule):
     def val_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.val_dataset, batch_size=32, shuffle=False)
 
-    def model_step(self, batch, mask: bool = True):
+    def model_step(self, batch, masking: bool = True):
         # Use a masked langueage model and predict the missing values
         X, rate, _, _ = batch
-        if mask:
-            _, X_masked = self.masker.mask_batch(X)
+        if masking:
+            X_masked, labels = self.masker.mask_batch(X)
         else:
-            X_masked = -torch.ones_like(X)
+            X_masked = X.clone()
+            labels = torch.ones_like(X) * mask.UNMASKED_LABEL
 
-        removed = X_masked >= 0
-        X_smoothed = self.net((X * (1 - 1 * removed)).to(torch.float32))
-        loss = self.criterion(X_smoothed[removed], X[removed])
-        loss_base = self.criterion_base(X[removed], X[removed])
-        return loss - loss_base, X_smoothed, X, removed, rate
+        masked = labels != mask.UNMASKED_LABEL
+        X_smoothed = self.net((X_masked).to(torch.float32))
+        loss = self.criterion(X_smoothed[masked], X[masked])
+        loss_base = self.criterion_base(X[masked], X[masked])
+        return loss - loss_base, X_smoothed, X, masked, rate
 
     def on_train_start(self):
         self.train_loss.reset()
@@ -91,12 +92,12 @@ class UnetLitModule(LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx: int):
-        loss, preds, targets, mask, rate = self.model_step(batch)
+        loss, preds, _, _, rate = self.model_step(batch)
         self.log("val/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
 
         if rate is not None:
             # Figure out whether we can predict the rate well
-            _, preds, targets, mask, rate = self.model_step(batch, mask=False)
+            _, preds, targets, mask, rate = self.model_step(batch, masking=False)
             r2 = torch.corrcoef(torch.stack([preds.ravel(), rate.ravel()]))[0, 1] ** 2
             self.val_r2(r2)
             self.log("val/r2", self.val_r2, on_step=True, on_epoch=True)
@@ -119,8 +120,8 @@ class UnetLitModule(LightningModule):
             tensorboard.add_image(
                 "debug/target_rates",
                 torch.fmax(
-                    torch.fmin(torch.exp(rate[0]), torch.Tensor([1.0])),
-                    torch.Tensor([0.0]),
+                    torch.fmin(torch.exp(rate[0]), torch.Tensor([1.0]).to(device=self.device)),
+                    torch.Tensor([0.0]).to(device=self.device),
                 ),
                 self.current_epoch,
                 dataformats="HW",
