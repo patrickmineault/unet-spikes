@@ -73,6 +73,14 @@ class DATASET_MODES(Enum):
     test = "test"
     trainval = "trainval"
 
+def merge_config(base: dict, delta: dict):
+    for k, v in delta.items():
+        if isinstance(v, dict):
+            merge_config(base[k], delta[k])
+        else:
+            base[k] = v
+    return base
+
 
 class SpikesDataset(data.Dataset):
     r"""
@@ -90,13 +98,18 @@ class SpikesDataset(data.Dataset):
         """
         super().__init__()
         with open(config_filename) as f:
-            config = munchify(yaml.load(f, Loader=yaml.FullLoader))
+            config = yaml.load(f, Loader=yaml.FullLoader)
+
+        with open(Path(config_filename).parent / "base.yaml") as f:
+            base_config = yaml.load(f, Loader=yaml.FullLoader)
+        
+        config = munchify(merge_config(base_config, config))
 
         self.logger = logger
         self.config = config.DATA
         self.use_lograte = config.MODEL.LOGRATE
         self.batch_size = config.TRAIN.BATCH_SIZE
-        self.datapath = Path(config_filename).parent / config.DATA.TRAIN_FILENAME
+        self.datapath = Path(config_filename).parent.parent / "h5" / config.DATA.TRAIN_FILENAME
 
         self.has_rates = False
         self.has_heldout = False
@@ -199,13 +212,13 @@ class SpikesDataset(data.Dataset):
         r"""
         Return spikes and rates, shaped T x N (num_neurons)
         """
-        spikes = self.spikes[index].T
-        rates = None if self.rates is None else self.rates[index].T
+        spikes = self.spikes[index].T.to(torch.long)
+        rates = None if self.rates is None else self.rates[index].T.to(torch.float32)
         heldout_spikes = (
-            None if self.heldout_spikes is None else self.heldout_spikes[index].T
+            None if self.heldout_spikes is None else self.heldout_spikes[index].T.to(torch.long)
         )
         forward_spikes = (
-            None if self.forward_spikes is None else self.forward_spikes[index].T
+            None if self.forward_spikes is None else self.forward_spikes[index].T.to(torch.long)
         )
 
         return (spikes, rates, heldout_spikes, forward_spikes)
