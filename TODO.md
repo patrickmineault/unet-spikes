@@ -6,13 +6,13 @@
 [X] Test out `prep_nlb.py`
 [X] Add more information about the dataset and the problem into the deck
 [X] Add more information about me in the deck
+[X] Install M1 local GPU based training with PyTorch nightlies``
+[X] Check that checkpoint loading works as expected
+[X] Look into Convnext with MLM methodology
 [ ] Implement augmentation (e.g. dropout)
 [ ] Create branches listed in README.md
-[X] Check that checkpoint loading works as expected
 [ ] Implement some of the suggestions listed in README.md
 [ ] Implement Hydra-based configuration
-[X] Install M1 local GPU based training with PyTorch nightlies``
-[X] Look into Convnext with MLM methodology
 [ ] Try running under SLURM on Mila infra
 [ ] Implement alternative method with mask
 [ ] Move tests out of the main branch
