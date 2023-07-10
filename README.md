@@ -34,7 +34,7 @@ A core learning objective of this repository is to help you become productive in
 ### Testing
 
 1. Write some tests for the UNet. You can put them in `tests/test_unet.py`. Start by writing a test `test_shape` that verifies that the shape of inputs is the same as the shape of outputs when you run them through the `UNet.forward` function. Make sure that this works regardless of the size of the input. Verify your tests run via `pytest`. To challenge yourself, use the `broken-unet` branch, which contains a broken version of the UNet. As you uncover more issues with the UNet, add more tests.
-2. Write some tests for the data loader. Make sure that the code works equally when you use "../data/lorenz.yaml" or "../data/chaotic.yaml". Stretch goal: make things work for the nlb (Neural Latent Benchmark) datasets. You can use the [NDT repo](https://github.com/snel-repo/neural-data-transformers) as inspiration. 
+2. Write some tests for the data loader. Make sure that the code works equally when you use "../data/configs/lorenz.yaml" or "../data/configs/chaotic.yaml".  
 
 Potential solutions are in the `sample-tests` branch.
 
@@ -62,3 +62,20 @@ Currently, the network performs about as well as the Neural Data Transformer on 
 4. Add back in a transformer-like mechanism to allow long-range interactions. On the highest level layer, add in two transformers, one that works across space, another that works across time.
 5. Do an automated sweep over the learning rate using [PyTorch Lightning's learning rate finder](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html).
 6. Add in [stochastic weight averaging](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html) (SWA).
+7. Try to implement some of the proposed changes in the [ConvNextV2 paper](https://openaccess.thecvf.com/content/CVPR2023/papers/Woo_ConvNeXt_V2_Co-Designing_and_Scaling_ConvNets_With_Masked_Autoencoders_CVPR_2023_paper.pdf).
+
+## New datasets
+
+Though the network is trained on synthetic datasets, it can be modified to work with arbitrary datasets. To apply to some of the datasets used in the neural latents benchmark, install the dandi tool (`pip install dandi`) and download these datasets to a local folder:
+
+```
+dandi download DANDI:000127
+dandi download DANDI:000128
+dandi download DANDI:000129
+dandi download DANDI:000130
+dandi download DANDI:000138
+dandi download DANDI:000139
+dandi download DANDI:000140
+```
+
+You can then preprocess the data using `scripts/prep_nlb.py`. Specify the input directory using the `--data-root` argument. Once the data is preprocessed, it will be put in data/h5. You may then use it to train the network. Read up more on the datasets in the [Neural Latents Benchmark paper](https://arxiv.org/abs/2109.04463). 
