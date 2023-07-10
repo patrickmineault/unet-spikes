@@ -4,6 +4,7 @@ DATA:
   VAL_FILENAME: 'chaotic_rnn_no_inputs_dataset_N50_S50.h5'
   LOG_EPSILON: .0000001
   OVERFIT_TEST: False
+  IGNORE_FORWARD: False
 MODEL:
   TRIAL_LENGTH: 100
   LEARNABLE_POSITION: True
