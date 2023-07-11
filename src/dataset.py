@@ -73,6 +73,7 @@ class DATASET_MODES(Enum):
     test = "test"
     trainval = "trainval"
 
+
 def merge_config(base: dict, delta: dict):
     for k, v in delta.items():
         if isinstance(v, dict):
@@ -102,14 +103,16 @@ class SpikesDataset(data.Dataset):
 
         with open(Path(config_filename).parent / "base.yaml") as f:
             base_config = yaml.load(f, Loader=yaml.FullLoader)
-        
+
         config = munchify(merge_config(base_config, config))
 
         self.logger = logger
         self.config = config.DATA
         self.use_lograte = config.MODEL.LOGRATE
         self.batch_size = config.TRAIN.BATCH_SIZE
-        self.datapath = Path(config_filename).parent.parent / "h5" / config.DATA.TRAIN_FILENAME
+        self.datapath = (
+            Path(config_filename).parent.parent / "h5" / config.DATA.TRAIN_FILENAME
+        )
 
         self.has_rates = False
         self.has_heldout = False
@@ -213,12 +216,20 @@ class SpikesDataset(data.Dataset):
         Return spikes and rates, shaped T x N (num_neurons)
         """
         spikes = self.spikes[index].T.to(torch.long)
-        rates = None if self.rates is None else self.rates[index].T.to(torch.float32)
+        rates = (
+            None
+            if self.rates is None
+            else torch.clamp(self.rates[index].T.to(torch.float32).exp(), 0, 1)
+        )
         heldout_spikes = (
-            None if self.heldout_spikes is None else self.heldout_spikes[index].T.to(torch.long)
+            None
+            if self.heldout_spikes is None
+            else self.heldout_spikes[index].T.to(torch.long)
         )
         forward_spikes = (
-            None if self.forward_spikes is None else self.forward_spikes[index].T.to(torch.long)
+            None
+            if self.forward_spikes is None
+            else self.forward_spikes[index].T.to(torch.long)
         )
 
         return (spikes, rates, heldout_spikes, forward_spikes)
