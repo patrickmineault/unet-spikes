@@ -7,34 +7,39 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import tqdm
 
-from src import mask, unet
+from src import cnn, mask
 from src.dataset import DATASET_MODES, SpikesDataset
 
 
-def model_step(net, criterion, criterion_base, masker, batch, device, masking=True):
+def model_step(net, criterion, masker, batch, device, masking=True):
     X, rate, _, _ = batch
-    X = X.to(device)
+
     rate = rate.to(device)
     if masking:
-        X_masked, labels = masker.mask_batch(X)
+        the_mask = masker(X)
     else:
-        X_masked = X.clone()
-        labels = torch.ones_like(X) * mask.UNMASKED_LABEL
+        the_mask = torch.zeros_like(X)
 
-    masked = labels != mask.UNMASKED_LABEL
+    assert X.shape == the_mask.shape
+    assert the_mask.sum() < 0.5 * the_mask.numel()
+
+    # Replace masked values with 0
+    X_masked = X * (1 - the_mask.to(torch.float32))
+    assert X_masked.sum() <= X.sum()
+
     X_smoothed = net((X_masked).to(torch.float32))
-    loss = criterion(X_smoothed[masked], X[masked])
-    loss_base = criterion_base(X[masked], X[masked])
-    return loss - loss_base, X_smoothed, X, masked, rate
+    loss = criterion(
+        X_smoothed[the_mask].to(torch.float32), X[the_mask].to(torch.float32)
+    )
+    return loss, X_smoothed, X, the_mask, rate
 
 
 def log_metrics(preds, targets, mask, logger, prefix, epoch):
     assert targets.min() >= 0, "Negative targets"
-    preds_exp = torch.exp(preds)
 
     logger.add_scalar(f"{prefix}/loss", loss, epoch)
-    logger.add_scalar(f"{prefix}/mean_preds", preds_exp.mean(), epoch)
-    logger.add_scalar(f"{prefix}/std_preds", preds_exp.std(), epoch)
+    logger.add_scalar(f"{prefix}/mean_preds", preds.mean(), epoch)
+    logger.add_scalar(f"{prefix}/std_preds", preds.std(), epoch)
     logger.add_scalar(f"{prefix}/mean_targets", targets.to(torch.float32).mean(), epoch)
     logger.add_scalar(f"{prefix}/std_targets", targets.to(torch.float32).std(), epoch)
     logger.add_scalar(f"{prefix}/mean_mask", mask.to(torch.float32).mean(), epoch)
@@ -42,23 +47,23 @@ def log_metrics(preds, targets, mask, logger, prefix, epoch):
 
 if __name__ == "__main__":
     data_source = "../data/config/lorenz.yaml"
-    num_epochs = 50  # or the number of epochs you want to train for
-    learning_rate = 1e-3  # or the learning rate you want to use
+    num_epochs = 250  # or the number of epochs you want to train for
+    learning_rate = 1e-2  # or the learning rate you want to use
 
     # Instantiate your model here
-    net = unet.UNet1D(3, 29, 10).to(dtype=torch.float32)
-    net.set_baseline_rate(0.2)
+    net = cnn.CNN(29, 10)
 
     logger = SummaryWriter()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # M1 Mac-specific
     if device == torch.device("cpu") and torch.backends.mps.is_available():
         device = torch.device("mps")
+    device = torch.device("cpu")
 
     net = net.to(device)
-    criterion = nn.PoissonNLLLoss(log_input=True, full=False)
-    criterion_base = nn.PoissonNLLLoss(log_input=False, full=False)
-    masker = mask.Masker(mask.MaskParams(), device)
+    # criterion = nn.PoissonNLLLoss(log_input=True)
+    criterion = nn.MSELoss(reduce=True)
+    masker = mask.Masker()
     train_dataset = SpikesDataset(data_source)
     val_dataset = SpikesDataset(data_source, DATASET_MODES.val)
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
@@ -73,7 +78,7 @@ if __name__ == "__main__":
         for batch_num, batch in tqdm(enumerate(train_loader), desc="Train Batch"):
             optimizer.zero_grad()
             loss, preds, targets, the_mask, rate = model_step(
-                net, criterion, criterion_base, masker, batch, device
+                net, criterion, masker, batch, device
             )
             loss.backward()
             optimizer.step()
@@ -87,13 +92,13 @@ if __name__ == "__main__":
             for batch_num, batch in tqdm(enumerate(val_loader), desc="Val Batch"):
                 total_epoch = epoch * len(val_loader) + batch_num
                 loss, preds, targets, the_mask, rate = model_step(
-                    net, criterion, criterion_base, masker, batch, device, False
+                    net, criterion, masker, batch, device, False
                 )
                 log_metrics(preds, targets, the_mask, logger, "val", total_epoch)
 
                 if rate is not None:
                     _, preds, targets, the_mask, rate = model_step(
-                        net, criterion, criterion_base, masker, batch, device, False
+                        net, criterion, masker, batch, device, False
                     )
                     r2 = (
                         torch.corrcoef(torch.stack([preds.ravel(), rate.ravel()]))[0, 1]
