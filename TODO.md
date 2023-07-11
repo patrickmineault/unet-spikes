@@ -9,6 +9,8 @@
 [X] Install M1 local GPU based training with PyTorch nightlies``
 [X] Check that checkpoint loading works as expected
 [X] Look into Convnext with MLM methodology
+[ ] Finish presentation
+[ ] Re-write mask pedagogically
 [ ] Implement augmentation (e.g. dropout)
 [ ] Create branches listed in README.md
 [ ] Implement some of the suggestions listed in README.md

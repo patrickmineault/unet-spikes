@@ -16,8 +16,8 @@ The UNet performs a combination of local smoothing and mixing data from differen
 Then, clone the data necessary to continue. Use an automated tool like `wget`:
 
 ```
-wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
 wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5
+wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
 ```
 
 Or download manually [1](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
@@ -29,53 +29,40 @@ Or download manually [1](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/ch
 
 ## Exercises
 
-A core learning objective of this repository is to help you become productive in deep learning with larger codebases, and so the exercises are less structured than conventional lab-in-a-notebook setups. Here are some exercises that you can focus on:
+### Debugging the model
 
-### Testing
+0. Train the model using `python train.py`.
+1. Load up tensorboard and visualize a training run. How does it look? Based on the graphs, do you think that the network is learning something meaningul?
 
-1. Write some tests for the UNet. You can put them in `tests/test_unet.py`. Start by writing a test `test_shape` that verifies that the shape of inputs is the same as the shape of outputs when you run them through the `UNet.forward` function. Make sure that this works regardless of the size of the input. Verify your tests run via `pytest`. To challenge yourself, use the `broken-unet` branch, which contains a broken version of the UNet. As you uncover more issues with the UNet, add more tests.
-2. Write some tests for the data loader. Make sure that the code works equally when you use "../data/configs/lorenz.yaml" or "../data/configs/chaotic.yaml".  
+*Hint*: in `train.py`, use `logger.add_image` to
 
-Potential solutions are in the `sample-tests` branch.
+2. Add visualization for the model outputs and the model targets. The model is trained on spike data, but because this is simulation data, we have access to the underlying rates. Log the following information to Tensorboard: `preds`, `target`, `the_mask` and `rates`. It's sufficient to log the last training batch. Use functions such `logger.add_image` or `logger.add_figure` to log images and figures to Tensorboard. How do they look?
 
-### Visualization
+1. One big issue with the model is that it can give negative rates. This is a problem because rates are inherently positive. Add a nonlinearity to the model to ensure that the rates are positive. Look inside the CNN function and add a nonlinearity to the output of the last layer. You can use `torch.nn.ReLU` or `torch.nn.Softplus` for this. How does this change the training? How does this change the predictions? How does this change the validation R2?
 
-1. Load up tensorboard and visualize a training run. How does it look? Do you have a clear view of what the network is learning? Add more visualization to verify that the middle layers are learning something helpful.
-2. Add support for weights and biases (wandb). Sign up for a [wandb](https://wandb.com/) account, `pip install wandb`, go through `wandb init`, and add a couple of lines to the training loop (`train.py`) so that it supports both local and remote logging. Do a training run and visualize it online. 
 
-### Parameter sweeps
+### Parameter sweep
 
-1. Convince yourself that the inner layers in the UNet are doing something. Do a parameter sweep from 0 to 4 inner layers (first parameter of `UNet`). Visualize the predictions and accuracy in Tensorboard. What does the validation R2 look like? What do predictions look like? Can you summarize in a few sentences what differs when you add in extra layers? Hint: look at the spatial smoothness of the predictiohns.
-2. Look at what happens as you sweep across latent dimensionality from `4` to `64` in steps of powers of 2. Does the network keep improving with higher latent dimensionality? How does the dimensionality of the network compare to the size of the data? Bonus: look back to the auto-encoder exercise you did yesterday. Does it react the same with latent dimensionality? Speculate as to why this may or may not be the case.
+1. Let's tweak the learning rate. Try a grid of different parameters. Look at the loss function and the validation R2. What is a good learning rate? Is the model training very sensitive to the learning rate?
+
+### Improving the model
+
+1. Perhaps the model is too low capacity and it needs more layers to learn some interesting features. Add one more set of layers to the model. You can do this by adding `smoothing1`, `bn1` and `relu1` layers in `cnn.py`, and also adding them in the `forward` function of `UNet`. How does this change the training? How does this change the predictions? How does this change the validation R2? Note: you need to create separate layers and not reuse the old ones, because otherwise the weights will be tied in the first convolutional layer and the second one.
+2. Now we have a bit of a mess on our hands! It would be better if the model was more modular. Time to refactor! Add a `Smoothing` layer class inside of `cnn.py` that wraps `smoothing`, `bn` and `relu` operations. It should be a subclass of `nn.Module`. Run the training again to make sure you didn't break anything! Stretch goal: test the CNN from the test module in tests/test_cnn.py. You can run this from the command line via `pytest test_cnn.py`. Write another test that checks that the Smoothing class works.
+3. (optional) Now that we have a modular CNN, we can add more layers to it. Try the network with up to 4 layers. You will need to make the filters shorter, as the number of weights are starting to add up. Does it help?
+4. (optional) Now let's swap out the CNN for a UNet. The UNet is conceptually similar to the CNN, but it uses a series of downsampling layers and upsampling layers, allowing the filters to response to more of the signal despite small kernels. You can find the UNet in `unet.py`. Swap out the CNN for the UNet in `train.py`. How does this change the training? How does this change the predictions? How does this change the validation R2?
 
 ### New features
 
-Currently, the network performs about as well as the Neural Data Transformer on the Lorenz benchmark but significantly underperforms on the chaotic RNN (R2 of 0.5 vs. 85 reported in the paper). Why is that? Consider different kinds of modifications of the network that might "fix it".
+Consider different kinds of modifications of the network that might improve it. You don't have to do these in order: they're just to get you thinking about how to improve the model and exercise your PyTorch hacking skills.
 
 1. Replace the masked tokens, which are currently assigned zeros, with something else. You could use, e.g.:
     * the average spike rate outside of the mask for each neuron
     * replace the spike rates with the nearest neighbor on either side of the mask
     * a linear interpolation of the spike trains on either side of the mask
     * give the mask to the input and output layers and allow it to be mixed in
-2. Add dropout layers. NDT reported that dropout needed to be > .2 for their network to work well. Does dropout do anything here?
-3. Replace the output nonlinearity of the network from an exponential to something less extreme. The output nonlinearity is implicit, we use a Poisson loss and give it the log rates, and internally it exponentiates them. This is consistent with the exponential being the canonical nonlinearity for the Poisson GLM. Replace it with something less extreme, like log(1+a*exp(x)). Be careful to implement this in a [numerically stable way](https://github.com/pytorch/pytorch/issues/39242). Write tests to verify your nonlinearity works well and doesn't result in NaNs with large negative and large positive inputs.
-4. Add back in a transformer-like mechanism to allow long-range interactions. On the highest level layer, add in two transformers, one that works across space, another that works across time.
-5. Do an automated sweep over the learning rate using [PyTorch Lightning's learning rate finder](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html).
-6. Add in [stochastic weight averaging](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html) (SWA).
-7. Try to implement some of the proposed changes in the [ConvNextV2 paper](https://openaccess.thecvf.com/content/CVPR2023/papers/Woo_ConvNeXt_V2_Co-Designing_and_Scaling_ConvNets_With_Masked_Autoencoders_CVPR_2023_paper.pdf).
-
-## New datasets
-
-Though the network is trained on synthetic datasets, it can be modified to work with arbitrary datasets. To apply to some of the datasets used in the neural latents benchmark, install the dandi tool (`pip install dandi`) and download these datasets to a local folder:
-
-```
-dandi download DANDI:000127
-dandi download DANDI:000128
-dandi download DANDI:000129
-dandi download DANDI:000130
-dandi download DANDI:000138
-dandi download DANDI:000139
-dandi download DANDI:000140
-```
-
-You can then preprocess the data using `scripts/prep_nlb.py`. Specify the input directory using the `--data-root` argument. Once the data is preprocessed, it will be put in data/h5. You may then use it to train the network. Read up more on the datasets in the [Neural Latents Benchmark paper](https://arxiv.org/abs/2109.04463). 
+2. Try to increase the masking ratio up to 0.6 and see if the model can still learn. How about using masking over *neurons* rather than masking over timesteps? Does that help?
+3. Add dropout layers. Look up the function `torch.nn.Dropout1d`. Does dropout do anything here?
+4. Add in [stochastic weight averaging](https://lightning.ai/docs/pytorch/stable/advanced/training_tricks.html) (SWA).
+5. Try the same model on the chaotic rnn dataset. Does it perform better or worse? Why?
+6. (advanced) Using the mean squared error is generally appropriate for continuous data. However, we know that for spikes, the Poisson distribution better captures the statistics of the data. Try to use the Poisson loss function instead of the MSE loss function. Look up the `torch.nn.PoissonNLLLoss` function. [You can use this paper as a reference](https://www.biorxiv.org/content/10.1101/463422v2).

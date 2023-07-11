@@ -4,3 +4,4 @@
 scripts/lightning_logs/*
 .env
 scripts/wandb
+scripts/runs
