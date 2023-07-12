@@ -8,20 +8,29 @@ The UNet performs a combination of local smoothing and mixing data from differen
 
 ## Getting started
 
-* Clone this repository (or a fork of it if you want to be able to modify it)
+* Fork this repository
+* Clone your fork
 * Create a fresh conda environment with e.g. Python 3.9, `conda create --name unet-spikes python=3.9`
 * `cd` into the directory and `pip install -e .`
 * `pip install -r requirements.txt`
 
-Then, clone the data necessary to continue. Use an automated tool like `wget`:
+### Copy the data
+
+Use an automated tool like `wget`:
 
 ```
 wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5
 wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
 ```
 
-Or download manually [1](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
-) and [2](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5) and put it into the data folder.
+Note that if wget is not installed on your system, you can install it via:
+
+```
+conda install -c anaconda wget
+```
+
+Alternatively, download manually [1](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
+) and [2](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5) and put it into the `data` folder.
 
 ## Training a model
 
