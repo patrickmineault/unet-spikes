@@ -62,7 +62,6 @@ How does it look? Based on the graphs, do you think that the network is learning
   dataformats='HW' is necessary because each prediction has the shape of an image that is Height x Width, and there is only one such prediction, hence there is no "channel" dimension. 
 
   Do the same for `target`, `the_mask` and `rates`.
-  ```
   
 </details>
 
