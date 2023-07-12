@@ -74,10 +74,52 @@ How does it look? Based on the graphs, do you think that the network is learning
 
 1. Let's tweak the learning rate. Try a grid of different learning rates, say from 1e-4 to 1e1 in logarithmic space. Look at the loss function and the validation R2. What is a good learning rate? Is the model training very sensitive to the learning rate?
 
+### Visualizing the middle layers
+
+1. How does the network do its magic? Let's visualize the weights of the model. Create a jupyter notebook. Load up a trained checkpoint, which should be saved in 'scripts/runs'. For example:
+
+```
+import torch
+from src.cnn import CNN
+
+cnn = CNN(29, 10)
+cnn.load_state_dict(torch.load("../scripts/runs/Jul12_03-25-21_AP-T-020.local/model.pt"))
+cnn.eval()
+```
+
+Visualize the embedding layer. For example:
+
+```
+import matplotlib.pyplot as plt
+plt.imshow(cnn.embedding.weight.data.squeeze())
+```
+
+Do the same with the unembedding layer. Can you see any structure in the weights? What do you think is going on?
+
+2. Visualize the weights of the first convolutional layer. You are going to need to look at slices of the weights, as they actually contain three different indices. For example, you might start by looking at `cnn.smoothing.weight.data[0, :, :].squeeze()`. Can you see anything in there?
+
+3. (optional) Sometimes intermediate layers can be difficult to visualize even when their output is meaningful. Load up a trained checkpoint and visualize the output of the first convolutional layer. You will need to load up some data and run it through the model. For example:
+
+```
+from src.dataset import SpikesDataset
+dataset = SpikesDataset("../data/config/lorenz.yaml")
+
+# First examplar
+spikes, rates, _, _ = dataset[0]
+
+# Run the spikes through part of the network
+X = spikes.unsqueeze(0).to(torch.float32)
+X = cnn.embedding(X)
+X = cnn.smoothing(X)
+plt.imshow(X.squeeze().detach().numpy())
+```
+
+What does this tell you about how the network is doing its job?
+
 ### Improving the model
 
-1. Perhaps the model is too low capacity and it needs more layers to learn some interesting features. Add one more set of layers to the model. You can do this by adding `smoothing1`, `bn1` and `relu1` layers in `cnn.py`, and also adding them in the `forward` function of `UNet`. How does this change the training? How does this change the predictions? How does this change the validation R2? Note: you need to create separate layers and not reuse the old ones, because otherwise the weights will be tied in the first convolutional layer and the second one.
-2. Now we have a bit of a mess on our hands! It would be better if the model was more modular. Time to refactor! Add a `Smoothing` layer class inside of `cnn.py` that wraps `smoothing`, `bn` and `relu` operations. It should be a subclass of `nn.Module`. Run the training again to make sure you didn't break anything! Stretch goal: test the CNN from the test module in tests/test_cnn.py. You can run this from the command line via `pytest test_cnn.py`. Write another test that checks that the Smoothing class works.
+1. Perhaps the model is too low capacity and it needs more layers to learn some interesting features. Add one more set of layers to the model. You can do this by adding `smoothing1`, `bn1` and `relu1` layers in the initialization of `cnn.py`, and forwarding your inputs through them in the `forward` function. How does this change the training? How does this change the predictions? How does this change the validation R2? Note: you need to create separate layers and not reuse the old ones, because otherwise the weights will be tied in the first convolutional layer and the second one.
+2. We made higher capacity, but we now we have a bit of a mess on our hands! It would be better if the model was more modular. Time to refactor! Add a `Smoothing` layer class inside of `cnn.py` that wraps `smoothing`, `bn` and `relu` operations. It should be a subclass of `nn.Module`. Run the training again to make sure you didn't break anything! Stretch goal: test the CNN from the test module in `tests/test_cnn.py`. You can run this from the command line via `pytest test_cnn.py` or via the `test`. Write another test that checks that the `Smoothing` class works.
 3. (optional) Now that we have a modular CNN, we can add more layers to it. Try the network with up to 4 layers. You will need to make the filters shorter, as the number of weights are starting to add up. Does it help?
 4. (optional) Now let's swap out the CNN for a UNet. The UNet is conceptually similar to the CNN, but it uses a series of downsampling layers and upsampling layers, allowing the filters to response to more of the signal despite small kernels. You can find the UNet in `unet.py`. Swap out the CNN for the UNet in `train.py`. How does this change the training? How does this change the predictions? How does this change the validation R2?
 
