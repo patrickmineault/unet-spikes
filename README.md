@@ -43,9 +43,7 @@ Alternatively, download manually [1](https://cajal-data-740441.s3.eu-west-3.amaz
 0. Train the model using `python train.py`.
 1. Load up tensorboard and visualize a training run. How does it look? Based on the graphs, do you think that the network is learning something meaningul?
 
-*Hint*: in `train.py`, use `logger.add_image` to
-
-2. Add visualization for the model outputs and the model targets. The model is trained on spike data, but because this is simulation data, we have access to the underlying rates. Log the following information to Tensorboard: `preds`, `target`, `the_mask` and `rates`. It's sufficient to log the last training batch. Use functions such `logger.add_image` or `logger.add_figure` to log images and figures to Tensorboard. How do they look?
+2. Add visualization for the model outputs and the model targets. The model is trained on spike data, but because this is simulation data, we have access to the underlying rates. Log the following information to Tensorboard: `preds`, `target`, `the_mask` and `rates`. It's sufficient to log the last training batch. Use functions such `logger.add_image` or `logger.add_figure` to log images and figures to Tensorboard in `train.py`. How do they look?
 
 1. One big issue with the model is that it can give negative rates. This is a problem because rates are inherently positive. Add a nonlinearity to the model to ensure that the rates are positive. Look inside the CNN function and add a nonlinearity to the output of the last layer. You can use `torch.nn.ReLU` or `torch.nn.Softplus` for this. How does this change the training? How does this change the predictions? How does this change the validation R2?
 
