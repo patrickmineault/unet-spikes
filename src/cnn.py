@@ -21,4 +21,5 @@ class CNN(nn.Module):
         X = self.bn(X)
         X = self.relu(X)
         X = self.unembedding(X)
+        X = self.relu(X)
         return X

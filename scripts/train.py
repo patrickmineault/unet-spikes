@@ -48,17 +48,13 @@ def log_metrics(preds, targets, mask, logger, prefix, epoch):
 if __name__ == "__main__":
     data_source = "../data/config/lorenz.yaml"
     num_epochs = 250  # or the number of epochs you want to train for
-    learning_rate = 1e-2  # or the learning rate you want to use
+    learning_rate = 1e0  # or the learning rate you want to use
 
     # Instantiate your model here
     net = cnn.CNN(29, 10)
 
     logger = SummaryWriter()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # M1 Mac-specific
-    if device == torch.device("cpu") and torch.backends.mps.is_available():
-        device = torch.device("mps")
-    device = torch.device("cpu")
 
     net = net.to(device)
     # criterion = nn.PoissonNLLLoss(log_input=True)
@@ -85,6 +81,8 @@ if __name__ == "__main__":
 
             total_epoch = epoch * len(train_loader) + batch_num
             log_metrics(preds, targets, the_mask, logger, "train", total_epoch)
+
+        logger.add_image("debug/preds", preds[-1], total_epoch, dataformats="HW")
 
         # Validate loop
         net.eval()
