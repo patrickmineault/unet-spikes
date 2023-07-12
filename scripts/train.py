@@ -48,7 +48,7 @@ def log_metrics(preds, targets, mask, logger, prefix, epoch):
 if __name__ == "__main__":
     data_source = "../data/config/lorenz.yaml"
     num_epochs = 250  # or the number of epochs you want to train for
-    learning_rate = 1e0  # or the learning rate you want to use
+    learning_rate = 1e-1  # or the learning rate you want to use
 
     # Instantiate your model here
     net = cnn.CNN(29, 10)
