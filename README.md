@@ -19,8 +19,8 @@ The UNet performs a combination of local smoothing and mixing data from differen
 Use an automated tool like `wget`:
 
 ```
-wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5
-wget -P data https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
+wget -P data/h5 https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5
+wget -P data/h5 https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
 ```
 
 Note that if wget is not installed on your system, you can install it via:
@@ -30,7 +30,7 @@ conda install -c anaconda wget
 ```
 
 Alternatively, download manually [1](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/chaotic_rnn_no_inputs_dataset_N50_S50.h5
-) and [2](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5) and put it into the `data` folder.
+) and [2](https://cajal-data-740441.s3.eu-west-3.amazonaws.com/lfads_lorenz.h5) and put it into the `data/h5` folder.
 
 ## Training a model
 
@@ -62,7 +62,6 @@ How does it look? Based on the graphs, do you think that the network is learning
   dataformats='HW' is necessary because each prediction has the shape of an image that is Height x Width, and there is only one such prediction, hence there is no "channel" dimension. 
 
   Do the same for `target`, `the_mask` and `rates`.
-  ```
   
 </details>
 
