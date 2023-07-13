@@ -27,9 +27,10 @@ def model_step(net, criterion, masker, batch, device, masking=True):
     X_masked = X * (1 - the_mask.to(torch.float32))
     assert X_masked.sum() <= X.sum()
 
-    X_smoothed = net((X_masked).to(torch.float32))
+    X_smoothed = net((X_masked).to(dtype=torch.float32, device=device))
     loss = criterion(
-        X_smoothed[the_mask].to(torch.float32), X[the_mask].to(torch.float32)
+        X_smoothed[the_mask].to(dtype=torch.float32, device=device),
+        X[the_mask].to(dtype=torch.float32, device=device),
     )
     return loss, X_smoothed, X, the_mask, rate
 
@@ -55,10 +56,6 @@ if __name__ == "__main__":
 
     logger = SummaryWriter()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # M1 Mac-specific
-    if device == torch.device("cpu") and torch.backends.mps.is_available():
-        device = torch.device("mps")
-    device = torch.device("cpu")
 
     net = net.to(device)
     # criterion = nn.PoissonNLLLoss(log_input=True)
@@ -66,8 +63,8 @@ if __name__ == "__main__":
     masker = mask.Masker()
     train_dataset = SpikesDataset(data_source)
     val_dataset = SpikesDataset(data_source, DATASET_MODES.val)
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, amsgrad=True)
 
