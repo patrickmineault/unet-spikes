@@ -58,7 +58,10 @@ class UNet1D(nn.Module):
         if self.nlayers > 0:
             X_shape = X.shape
             ideal_size = (
-                int(np.ceil((X.shape[2] - 1) / (2**self.nlayers)) * (2**self.nlayers))
+                int(
+                    np.ceil((X.shape[2] - 1) / (2**self.nlayers))
+                    * (2**self.nlayers)
+                )
                 + 1
             )
             left_pad = (ideal_size - X.shape[2]) // 2
@@ -80,7 +83,7 @@ class UNet1D(nn.Module):
 
         if self.nlayers > 0:
             X = 0
-            
+
         for layer in self.upsample_layers:
             X = layer(X + activations.pop())
 
@@ -89,14 +92,6 @@ class UNet1D(nn.Module):
         if right_pad > 0:
             X = X[:, :, left_pad:-right_pad]
         return X
-
-    def set_baseline_rate(self, baseline_rate):
-        """Sets the baseline mean spike rate of the model by modifying the bias
-        of the unembedding layer."""
-        self.baseline_rate = baseline_rate
-        self.unembedding.bias.data = self.unembedding.bias.data * 0.0 + np.log(
-            baseline_rate
-        )
 
 
 class DownsampleLayer(nn.Module):

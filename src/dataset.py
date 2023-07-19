@@ -217,9 +217,7 @@ class SpikesDataset(data.Dataset):
         """
         spikes = self.spikes[index].T.to(torch.long)
         rates = (
-            None
-            if self.rates is None
-            else torch.clamp(self.rates[index].T.to(torch.float32).exp(), 0, 1)
+            None if self.rates is None else self.rates[index].T.to(torch.float32).exp()
         )
         heldout_spikes = (
             None

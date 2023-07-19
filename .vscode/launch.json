@@ -2,13 +2,42 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Buggy train.py",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/train.py",
+            "cwd": "${workspaceFolder}/scripts",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTORCH_ENABLE_MPS_FALLBACK": "1"
+            },
+            "args": [
+                "--loss",
+                "poisson",
+                "--model",
+                "unet",
+                "--lr",
+                "2e-3",
+                "--latent_dim",
+                "20",
+                "--ilink",
+                "softplus",
+                "--beta",
+                "5.0"
+            ]
+        },
+        {
             "name": "Python: train.py",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/train.py",
             "cwd": "${workspaceFolder}/scripts",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "env": {
+                "PYTORCH_ENABLE_MPS_FALLBACK": "1"
+            }
         },
         {
             "name": "Python: Current File",
