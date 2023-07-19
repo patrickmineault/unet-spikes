@@ -93,6 +93,11 @@ class UNet1D(nn.Module):
             X = X[:, :, left_pad:-right_pad]
         return X
 
+    def set_baseline_rate(self, rate: float):
+        self.unembedding.bias.data = self.unembedding.bias.data * 0.0 + torch.log(
+            torch.tensor(rate)
+        )
+
 
 class DownsampleLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
