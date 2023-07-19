@@ -1,4 +1,5 @@
 import os.path
+import warnings
 
 import torch
 import torch.optim
@@ -13,12 +14,13 @@ from src.dataset import DATASET_MODES, SpikesDataset
 
 def model_step(net, criterion, masker, batch, device, masking=True):
     X, rate, _, _ = batch
-
+    X = X.to(device)
     rate = rate.to(device)
     if masking:
         the_mask = masker(X)
     else:
         the_mask = torch.zeros_like(X)
+    the_mask = the_mask.to(device)
 
     assert X.shape == the_mask.shape
     assert the_mask.sum() < 0.5 * the_mask.numel()
@@ -33,6 +35,19 @@ def model_step(net, criterion, masker, batch, device, masking=True):
         X[the_mask].to(dtype=torch.float32, device=device),
     )
     return loss, X_smoothed, X, the_mask, rate
+
+
+def get_best_device():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Use M1 Mac if available
+    if device == torch.device("cpu") and torch.backends.mps.is_available():
+        device = torch.device("mps")
+        warnings.warn(
+            "Using M1 Mac GPU. You may need to `export PYTORCH_ENABLE_MPS_FALLBACK=1`"
+        )
+
+    return device
 
 
 def log_metrics(preds, targets, mask, logger, prefix, epoch):
@@ -55,10 +70,9 @@ if __name__ == "__main__":
     net = cnn.CNN(29, 10)
 
     logger = SummaryWriter()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_best_device()
 
     net = net.to(device)
-    # criterion = nn.PoissonNLLLoss(log_input=True)
     criterion = nn.MSELoss(reduce=True)
     masker = mask.Masker()
     train_dataset = SpikesDataset(data_source)
