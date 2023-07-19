@@ -1,3 +1,4 @@
+import argparse
 import os.path
 import warnings
 
@@ -62,9 +63,11 @@ def log_metrics(preds, targets, mask, logger, prefix, epoch):
 
 
 if __name__ == "__main__":
-    data_source = "../data/config/lorenz.yaml"
-    num_epochs = 250  # or the number of epochs you want to train for
-    learning_rate = 1e-2  # or the learning rate you want to use
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lr", type=float, default=1e-2)
+    parser.add_argument("--epochs", type=int, default=250)
+    parser.add_argument("--data", type=str, default="../data/config/lorenz.yaml")
+    args = parser.parse_args()
 
     # Instantiate your model here
     net = cnn.CNN(29, 10)
@@ -75,14 +78,14 @@ if __name__ == "__main__":
     net = net.to(device)
     criterion = nn.MSELoss(reduce=True)
     masker = mask.Masker()
-    train_dataset = SpikesDataset(data_source)
-    val_dataset = SpikesDataset(data_source, DATASET_MODES.val)
+    train_dataset = SpikesDataset(args.data)
+    val_dataset = SpikesDataset(args.data, DATASET_MODES.val)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, amsgrad=True)
+    optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, amsgrad=True)
 
-    for epoch in tqdm(range(num_epochs), desc="Epochs"):
+    for epoch in tqdm(range(args.epochs), desc="Epochs"):
         net.train()
 
         # Train loop
